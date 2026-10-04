@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GOD'S EYE AI</title>
+
+<link rel="stylesheet"
+href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
+<style>
+*{box-sizing:border-box}
+body{
+ margin:0;
+ background:#02080d;
+ color:#dff8ff;
+ font-family:Arial,sans-serif
+}
+header{
+ padding:18px;
+ border-bottom:1px solid #16495c;
+ display:flex;
+ justify-content:space-between;
+ align-items:center
+}
+h1{
+ margin:0;
+ color:#8be7ff;
+ letter-spacing:3px;
+ font-size:25px
+}
+.active{color:#62e69c}
+main{padding:15px;max-width:900px;margin:auto}
+input,button{
+ border:1px solid #1d6077;
+ background:#071720;
+ color:#e8fbff;
+ border-radius:12px;
+ padding:14px;
+ font-size:16px
+}
+input{width:65%}
+button{cursor:pointer}
+button:hover{background:#0d2733}
+.search{display:flex;gap:8px;margin-bottom:12px}
+.actions{
+ display:grid;
+ grid-template-columns:1fr 1fr;
+ gap:10px;
+ margin-bottom:15px
+}
+#map{
+ height:55vh;
+ min-height:350px;
+ border:1px solid #216078;
+ border-radius:18px;
+ overflow:hidden
+}
+.panel{
+ margin-top:15px;
+ padding:16px;
+ border:1px solid #16495c;
+ border-radius:16px;
+ background:#06131b
+}
+.title{
+ color:#72ddff;
+ letter-spacing:2px;
+ margin-bottom:10px
+}
+.data{
+ display:grid;
+ grid-template-columns:1fr 1fr;
+ gap:10px
+}
+.box{
+ padding:13px;
+ border:1px solid #16495c;
+ border-radius:12px
+}
+.small{color:#8baab4;font-size:13px}
+#status{color:#62e69c}
+@media(max-width:500px){
+ input{width:100%}
+ .search{flex-wrap:wrap}
+ .search button{width:100%}
+ .data{grid-template-columns:1fr}
+}
+</style>
+</head>
+
+<body>
+
+<header>
+<h1>◉ GOD'S EYE AI</h1>
+<div id="status">● ACTIVO</div>
+</header>
+
+<main>
+
+<div class="panel">
+<div class="title">🔎 BUSCAR UBICACIÓN</div>
+
+<div class="search">
+<input id="search" placeholder="Ej. Quetzaltenango">
+<button onclick="buscar()">BUSCAR</button>
+</div>
+
+<div class="actions">
+<button onclick="miUbicacion()">📍 Mi ubicación</button>
+<button onclick="vistaGlobal()">🌎 Vista global</button>
+</div>
+</div>
+
+<div class="panel">
+<div class="title">🛰️ MAPA EN TIEMPO REAL</div>
+<div id="map"></div>
+</div>
+
+<div class="panel">
+<div class="title">📊 INFORMACIÓN</div>
+
+<div class="data">
+<div class="box">
+<div class="small">UBICACIÓN</div>
+<div id="place">Esperando...</div>
+</div>
+
+<div class="box">
+<div class="small">COORDENADAS</div>
+<div id="coords">--</div>
+</div>
+
+<div class="box">
+<div class="small">SISMOS PÚBLICOS</div>
+<div id="quakes">Cargando...</div>
+</div>
+
+<div class="box">
+<div class="small">ESTADO</div>
+<div>🟢 Sistema operativo</div>
+</div>
+</div>
+</div>
+
+<div class="panel">
+<div class="title">🤖 ASISTENTE</div>
+<div id="assistant">
+God's Eye AI está conectado al mapa y a fuentes públicas.
+</div>
+</div>
+
+<div class="panel">
+<div class="title">🔐 PRIVACIDAD</div>
+<div class="small">
+Este sistema utiliza información pública y permisos del navegador.
+No puede acceder por sí solo a cámaras privadas, teléfonos,
+mensajes o dispositivos de otras personas.
+</div>
+</div>
+
+</main>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+
+const map=L.map('map').setView([14.6349,-90.5069],7);
+
+const normal=L.tileLayer(
+'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+{
+ maxZoom:19,
+ attribution:'© OpenStreetMap'
+}).addTo(map);
+
+const sat=L.tileLayer(
+'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+{
+ maxZoom:18,
+ attribution:'© Esri'
+});
+
+L.control.layers({
+ "🗺️ Mapa":normal,
+ "🛰️ Satélite":sat
+}).addTo(map);
+
+let marker=null;
+
+function mostrar(lat,lon,nombre){
+
+ map.setView([lat,lon],13);
+
+ if(marker) map.removeLayer(marker);
+
+ marker=L.marker([lat,lon]).addTo(map);
+
+ marker.bindPopup(
+ '<b>GOD\\'S EYE AI</b><br>'+nombre
+ ).openPopup();
+
+ document.getElementById('place').textContent=nombre;
+ document.getElementById('coords').textContent=
+ lat.toFixed(5)+', '+lon.toFixed(5);
+
+ document.getElementById('assistant').textContent=
+ 'Ubicación seleccionada: '+nombre+
+ '. Mostrando información pública disponible.';
+}
+
+async function buscar(){
+
+ const q=document.getElementById('search').value.trim();
+
+ if(!q)return;
+
+ document.getElementById('status').textContent='● BUSCANDO...';
+
+ try{
+
+ const url=
+ 'https://nominatim.openstreetmap.org/search?format=json&limit=1&q='+
+ encodeURIComponent(q);
+
+ const r=await fetch(url);
+ const data=await r.json();
+
+ if(!data.length){
+   alert('No encontré esa ubicación.');
+   return;
+ }
+
+ const x=data[0];
+
+ mostrar(
+  parseFloat(x.lat),
+  parseFloat(x.lon),
+  x.display_name
+ );
+
+ }catch(e){
+
+ alert('No se pudo realizar la búsqueda.');
+
+ }finally{
+
+ document.getElementById('status').textContent='● ACTIVO';
+
+ }
+}
+
+function miUbicacion(){
+
+ if(!navigator.geolocation){
+
+  alert('Tu navegador no permite geolocalización.');
+  return;
+ }
+
+ navigator.geolocation.getCurrentPosition(
+
+ pos=>{
+
+  const lat=pos.coords.latitude;
+  const lon=pos.coords.longitude;
+
+  mostrar(lat,lon,'Mi ubicación');
+
+ },
+
+ ()=>{
+
+  alert('No se concedió permiso para obtener tu ubicación.');
+
+ }
+
+ );
+
+}
+
+function vistaGlobal(){
+
+ map.setView([20,0],2);
+
+ document.getElementById('place').textContent=
+ 'Vista global';
+
+ document.getElementById('coords').textContent='--';
+
+}
+
+async function cargarSismos(){
+
+ try{
+
+ const url=
+ 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson';
+
+ const r=await fetch(url);
+ const data=await r.json();
+
+ document.getElementById('quakes').textContent=
+ data.features.length+
+ ' eventos públicos registrados hoy';
+
+ data.features.slice(0,25).forEach(q=>{
+
+  const c=q.geometry.coordinates;
+
+  const mag=q.properties.mag;
+  const name=q.properties.place;
+
+  L.circleMarker(
+   [c[1],c[0]],
+   {
+    radius:Math.max(3,(mag||1)*2),
+    color:'#ff735c'
+   }
+  )
+  .addTo(map)
+  .bindPopup(
+   '<b>Sismo</b><br>'+
+   (name||'Ubicación desconocida')+
+   '<br>Magnitud: '+(mag??'--')
+  );
+
+ });
+
+ }catch(e){
+
+ document.getElementById('quakes').textContent=
+ 'Datos no disponibles';
+
+ }
+
+}
+
+cargarSismos();
+
+</script>
+
+</body>
+  </html>
